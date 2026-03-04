@@ -1,0 +1,22 @@
+DEFAULT deploy
+PROMPT 1
+TIMEOUT 100
+
+LABEL local
+  MENU LABEL Boot from local disk
+  LOCALBOOT 0
+
+LABEL live
+  MENU LABEL Debian Live (netboot)
+  KERNEL debian-live/vmlinuz
+  APPEND initrd=debian-live/initrd.img boot=live components fetch=tftp://{{ server_ip }}/debian-live/filesystem.squashfs
+
+LABEL deploy
+  MENU LABEL Deploy Image (multicast receiver)
+  KERNEL debian-live/vmlinuz
+  APPEND initrd=debian-live/initrd.img boot=live components quiet fetch=tftp://{{ server_ip }}/debian-live/filesystem.squashfs -- deploy_mode=1
+
+LABEL save
+  MENU LABEL Save Image (golden client capture)
+  KERNEL debian-live/vmlinuz
+  APPEND initrd=debian-live/initrd.img boot=live components quiet fetch=tftp://{{ server_ip }}/debian-live/filesystem.squashfs -- save_mode=1

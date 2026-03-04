@@ -1,0 +1,25 @@
+# dnsmasq configuration for lab-deploy PXE server
+# Managed by Ansible — do not edit manually.
+
+# ── DHCP ─────────────────────────────────────────────────────────────────────
+dhcp-range={{ dhcp_range_start }},{{ dhcp_range_end }},12h
+
+# Static IP leases from machines.yml
+{% for machine in machines | default([]) %}
+dhcp-host={{ machine.mac }},{{ machine.ip }},{{ machine.name }}
+{% endfor %}
+
+# ── TFTP ─────────────────────────────────────────────────────────────────────
+enable-tftp
+tftp-root={{ tftp_root }}
+
+# ── PXE boot file selection ───────────────────────────────────────────────────
+# Legacy BIOS clients
+dhcp-boot=tag:!efi-x86_64,pxelinux.0,pxeserver,{{ server_ip }}
+
+# UEFI x86-64 clients (identified by DHCP option 93 = 7)
+dhcp-match=set:efi-x86_64,option:client-arch,7
+dhcp-boot=tag:efi-x86_64,grubnetx64.efi,pxeserver,{{ server_ip }}
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+log-dhcp

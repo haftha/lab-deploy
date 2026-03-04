@@ -1,0 +1,14 @@
+---
+- name: Configure golden client
+  hosts: golden_client
+  become: true
+
+  tasks:
+
+    - name: Install PXE-required packages on golden client
+      ansible.builtin.apt:
+        name:
+          - partclone
+          - ntfs-3g
+        state: present
+        update_cache: true

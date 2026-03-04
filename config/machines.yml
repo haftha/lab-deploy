@@ -1,0 +1,12 @@
+---
+# Lab machine definitions.
+# Populated automatically by collect_mac.sh or edited manually.
+# The golden client should NOT be listed here.
+machines:
+  - name: client01
+    mac: "08:00:27:00:00:01"
+    ip: "192.168.1.101"
+  - name: client02
+    mac: "08:00:27:00:00:02"
+    ip: "192.168.1.102"
+  # Add more clients as needed (up to client20 / 192.168.1.120)
