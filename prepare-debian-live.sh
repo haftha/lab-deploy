@@ -12,7 +12,7 @@ ARCH="amd64"
 FLAVOUR="standard"
 ISO_NAME="debian-live-${DEBIAN_VERSION}-${ARCH}-${FLAVOUR}.iso"
 ISO_URL="https://cdimage.debian.org/cdimage/release/current-live/${ARCH}/iso-hybrid/${ISO_NAME}"
-CHECKSUM_URL="${ISO_URL}.sha256"
+CHECKSUM_URL="$(dirname "${ISO_URL}")/SHA256SUMS"
 
 CACHE_DIR="${HOME}/.cache/lab-deploy"
 ISO_CACHE="${CACHE_DIR}/${ISO_NAME}"
@@ -40,7 +40,7 @@ verify_checksum() {
     local iso="$1"
     info "Fetching checksum from ${CHECKSUM_URL} …"
     local expected
-    expected=$(wget -qO- "${CHECKSUM_URL}" | awk '{print $1}')
+    expected=$(wget -qO- "${CHECKSUM_URL}" | awk -v iso="${ISO_NAME}" '$2 == iso {print $1}')
     info "Verifying SHA256 checksum …"
     local actual
     actual=$(sha256sum "${iso}" | awk '{print $1}')
