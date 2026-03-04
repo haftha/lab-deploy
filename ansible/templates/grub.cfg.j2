@@ -1,0 +1,21 @@
+set default="deploy"
+set timeout=10
+
+menuentry "Boot from local disk" {
+  exit
+}
+
+menuentry "Debian Live (netboot)" --id live {
+  linux  debian-live/vmlinuz boot=live components fetch=tftp://{{ server_ip }}/debian-live/filesystem.squashfs
+  initrd debian-live/initrd.img
+}
+
+menuentry "Deploy Image (multicast receiver)" --id deploy {
+  linux  debian-live/vmlinuz boot=live components quiet fetch=tftp://{{ server_ip }}/debian-live/filesystem.squashfs -- deploy_mode=1
+  initrd debian-live/initrd.img
+}
+
+menuentry "Save Image (golden client capture)" --id save {
+  linux  debian-live/vmlinuz boot=live components quiet fetch=tftp://{{ server_ip }}/debian-live/filesystem.squashfs -- save_mode=1
+  initrd debian-live/initrd.img
+}

@@ -1,0 +1,192 @@
+---
+- name: Configure lab deploy server
+  hosts: deploy_server
+  become: true
+
+  vars:
+    server_ip:        "192.168.1.10"
+    dhcp_range_start: "192.168.1.101"
+    dhcp_range_end:   "192.168.1.120"
+    tftp_root:        /srv/tftp
+    images_dir:       /srv/images
+
+  tasks:
+
+    # ── Basic packages ────────────────────────────────────────────────────────
+    - name: Install required packages
+      tags: basic
+      ansible.builtin.apt:
+        name:
+          - dnsmasq
+          - partclone
+          - udpcast
+          - syslinux
+          - syslinux-common
+          - pxelinux
+          - grub-efi-amd64-bin
+          - etherwake
+          - arp-scan
+          - python3-yaml
+        state: present
+        update_cache: true
+
+    # ── Directory structure ───────────────────────────────────────────────────
+    - name: Create TFTP root directory
+      tags: basic
+      ansible.builtin.file:
+        path: "{{ tftp_root }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create images directory
+      tags: basic
+      ansible.builtin.file:
+        path: "{{ images_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create PXE legacy config directory
+      tags: basic
+      ansible.builtin.file:
+        path: "{{ tftp_root }}/pxelinux.cfg"
+        state: directory
+        mode: "0755"
+
+    # ── dnsmasq ──────────────────────────────────────────────────────────────
+    - name: Configure dnsmasq
+      tags: basic
+      ansible.builtin.template:
+        src: templates/dnsmasq.conf.j2
+        dest: /etc/dnsmasq.d/lab-deploy.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart dnsmasq
+
+    - name: Enable and start dnsmasq
+      tags: basic
+      ansible.builtin.service:
+        name: dnsmasq
+        state: started
+        enabled: true
+
+    # ── PXE — Legacy BIOS (PXELINUX/SYSLINUX) ────────────────────────────────
+    - name: Copy pxelinux.0 to TFTP root
+      tags: netboot
+      ansible.builtin.copy:
+        src: /usr/lib/PXELINUX/pxelinux.0
+        dest: "{{ tftp_root }}/pxelinux.0"
+        remote_src: true
+        mode: "0644"
+
+    - name: Copy SYSLINUX modules to TFTP root
+      tags: netboot
+      ansible.builtin.shell: |
+        cp /usr/lib/syslinux/modules/bios/*.c32 {{ tftp_root }}/
+      args:
+        creates: "{{ tftp_root }}/ldlinux.c32"
+
+    - name: Deploy Legacy PXE menu configuration
+      tags: netboot
+      ansible.builtin.template:
+        src: templates/pxelinux.cfg.j2
+        dest: "{{ tftp_root }}/pxelinux.cfg/default"
+        owner: root
+        group: root
+        mode: "0644"
+
+    # ── PXE — UEFI (GRUB2) ───────────────────────────────────────────────────
+    - name: Copy grubnetx64.efi to TFTP root
+      tags: netboot
+      ansible.builtin.copy:
+        src: /usr/lib/grub/x86_64-efi/grubnetx64.efi.signed
+        dest: "{{ tftp_root }}/grubnetx64.efi"
+        remote_src: true
+        mode: "0644"
+      ignore_errors: true  # file name may differ across Debian releases
+
+    - name: Fallback — copy grubx64.efi if signed variant missing
+      tags: netboot
+      ansible.builtin.shell: |
+        cp /usr/lib/grub/x86_64-efi/grubx64.efi {{ tftp_root }}/grubnetx64.efi
+      args:
+        creates: "{{ tftp_root }}/grubnetx64.efi"
+      ignore_errors: true
+
+    - name: Create GRUB config directory
+      tags: netboot
+      ansible.builtin.file:
+        path: "{{ tftp_root }}/grub"
+        state: directory
+        mode: "0755"
+
+    - name: Deploy UEFI GRUB2 menu configuration
+      tags: netboot
+      ansible.builtin.template:
+        src: templates/grub.cfg.j2
+        dest: "{{ tftp_root }}/grub/grub.cfg"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Create GRUB font directory
+      tags: netboot
+      ansible.builtin.file:
+        path: "{{ tftp_root }}/grub/fonts"
+        state: directory
+        mode: "0755"
+
+    # ── Debian Live boot files ────────────────────────────────────────────────
+    - name: Create netboot directory in TFTP root
+      tags: netboot
+      ansible.builtin.file:
+        path: "{{ tftp_root }}/debian-live"
+        state: directory
+        mode: "0755"
+
+    - name: Copy Debian Live vmlinuz to TFTP
+      tags: netboot
+      ansible.builtin.copy:
+        src: /tmp/debian-live-files/vmlinuz
+        dest: "{{ tftp_root }}/debian-live/vmlinuz"
+        remote_src: true
+        mode: "0644"
+
+    - name: Copy Debian Live initrd.img to TFTP
+      tags: netboot
+      ansible.builtin.copy:
+        src: /tmp/debian-live-files/initrd.img
+        dest: "{{ tftp_root }}/debian-live/initrd.img"
+        remote_src: true
+        mode: "0644"
+
+    # ── Deployment scripts ────────────────────────────────────────────────────
+    - name: Copy scripts to /usr/local/bin
+      tags: scripts
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: /usr/local/bin/
+        mode: "0755"
+        owner: root
+        group: root
+      loop:
+        - /vagrant/scripts/save_image.sh
+        - /vagrant/scripts/multicast_deploy.sh
+        - /vagrant/scripts/wake_up_machines.sh
+        - /vagrant/scripts/collect_mac.sh
+
+    - name: Copy script libraries to /usr/local/lib/lab-deploy
+      tags: scripts
+      ansible.builtin.copy:
+        src: /vagrant/scripts/lib/
+        dest: /usr/local/lib/lab-deploy/
+        mode: "0644"
+        owner: root
+        group: root
+        directory_mode: "0755"
+
+  handlers:
+    - name: Restart dnsmasq
+      ansible.builtin.service:
+        name: dnsmasq
+        state: restarted

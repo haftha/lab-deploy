@@ -1,0 +1,13 @@
+# Debian Live boot files — downloaded by prepare-debian-live.sh
+# Only keep the .gitkeep placeholder so the directory is tracked by Git.
+debian-live-files/vmlinuz
+debian-live-files/initrd.img
+
+# ISO cache (stored in ~/.cache/lab-deploy/ by default, not in the repo)
+*.iso
+
+# Vagrant runtime artifacts
+.vagrant/
+
+# Ansible retry files
+*.retry
